@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Online Event Registration and Management System</title>
+    <style>
+        * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; }
+        body { background-color: #f4f7f6; color: #333; }
+        header { background: #2c3e50; color: white; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; }
+        nav button { background: #3498db; color: white; border: none; padding: 0.5rem 1rem; margin-left: 0.5rem; border-radius: 4rem; cursor: pointer; }
+        nav button:hover { background: #2980b9; }
+        .container { max-width: 1000px; margin: 2rem auto; padding: 0 1rem; }
+        .card { background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 1.5rem; }
+        h2 { margin-bottom: 1rem; color: #2c3e50; border-bottom: 2px solid #ecf0f1; padding-bottom: 0.5rem; }
+        .form-group { margin-bottom: 1rem; }
+        label { display: block; margin-bottom: 0.5rem; font-weight: bold; }
+        input, select, textarea { width: 100%; padding: 0.6rem; border: 1px solid #ccc; border-radius: 4px; }
+        .btn { background: #27ae60; color: white; border: none; padding: 0.6rem 1.2rem; border-radius: 4px; cursor: pointer; font-size: 1rem; }
+        .btn:hover { background: #219150; }
+        table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+        th, td { border: 1px solid #ddd; padding: 0.75rem; text-align: left; }
+        th { background: #34495e; color: white; }
+        .alert { padding: 0.75rem; border-radius: 4px; margin-bottom: 1rem; display: none; }
+        .alert-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .alert-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Event Management System</h1>
+        <div id="user-info">
+            <span id="welcome-msg">Not logged in</span>
+            <button onclick="showSection('login-sec')">Login</button>
+            <button onclick="showSection('register-sec')">Register</button>
+            <button id="logout-btn" style="display:none;" onclick="logout()">Logout</button>
+        </div>
+    </header>
+
+    <div class="container">
+        <div id="alert-box" class="alert"></div>
+
+        <div id="register-sec" class="card">
+            <h2>Student Registration</h2>
+            <form id="register-form" onsubmit="handleRegister(event)">
+                <div class="form-group">
+                    <label>Full Name</label>
+                    <input type="text" id="reg-name" required>
+                </div>
+                <div class="form-group">
+                    <label>Email Address</label>
+                    <input type="email" id="reg-email" required>
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="reg-password" required>
+                </div>
+                <button type="submit" class="btn">Register</button>
+            </form>
+        </div>
+
+        <div id="login-sec" class="card">
+            <h2>Student / Admin Login</h2>
+            <form id="login-form" onsubmit="handleLogin(event)">
+                <div class="form-group">
+                    <label>Email Address</label>
+                    <input type="email" id="login-email" required>
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="login-password" required>
+                </div>
+                <button type="submit" class="btn">Login</button>
+            </form>
+        </div>
+
+        <div id="events-sec" class="card" style="display:none;">
+            <h2>Available Events</h2>
+            <div id="events-list" class="grid"></div>
+        </div>
+
+        <div id="my-events-sec" class="card" style="display:none;">
+            <h2>My Registered Events</h2>
+            <table id="my-events-table">
+                <thead>
+                    <tr>
+                        <th>Title</th>
+                        <th>Description</th>
+                        <th>Date</th>
+                        <th>Location</th>
+                        <th>Registered Date</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <div id="admin-sec" class="card" style="display:none;">
+            <h2>Admin Dashboard - Registered Participants</h2>
+            <table id="admin-table">
+                <thead>
+                    <tr>
+                        <th>Student Name</th>
+                        <th>Email</th>
+                        <th>Event Title</th>
+                        <th>Registration Date</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        let currentUser = null;
+
+        function showAlert(msg, type='success') {
+            const alertBox = document.getElementById('alert-box');
+            alertBox.innerText = msg;
+            alertBox.className = 'alert ' + (type === 'success' ? 'alert-success' : 'alert-error');
+            alertBox.style.display = 'block';
+            setTimeout(() => { alertBox.style.display = 'none'; }, 4000);
+        }
+
+        function showSection(id) {
+            ['register-sec', 'login-sec', 'events-sec', 'my-events-sec', 'admin-sec'].forEach(s => {
+                document.getElementById(s).style.display = (s === id) ? 'block' : 'none';
+            });
+        }
+
+        async function checkSession() {
+            const res = await fetch('/api/current_user');
+            const data = await res.json();
+            currentUser = data.user;
+            if (currentUser) {
+                document.getElementById('welcome-msg').innerText = `Welcome, ${currentUser.name} (${currentUser.role})`;
+                document.getElementById('logout-btn').style.display = 'inline-block';
+                loadEvents();
+                loadMyRegistrations();
+                showSection('events-sec');
+                if (currentUser.role === 'admin') {
+                    document.getElementById('admin-sec').style.display = 'block';
+                    loadAdminData();
+                }
+            } else {
+                document.getElementById('welcome-msg').innerText = 'Not logged in';
+                document.getElementById('logout-btn').style.display = 'none';
+                showSection('login-sec');
+            }
+        }
+
+        async function handleRegister(e) {
+            e.preventDefault();
+            const name = document.getElementById('reg-name').value;
+            const email = document.getElementById('reg-email').value;
+            const password = document.getElementById('reg-password').value;
+
+            const res = await fetch('/api/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, email, password })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                showAlert(data.message, 'success');
+                showSection('login-sec');
+            } else {
+                showAlert(data.message, 'error');
+            }
+        }
+
+        async function handleLogin(e) {
+            e.preventDefault();
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+
+            const res = await fetch('/api/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                showAlert(data.message, 'success');
+                checkSession();
+            } else {
+                showAlert(data.message, 'error');
+            }
+        }
+
+        async function logout() {
+            await fetch('/api/logout');
+            currentUser = null;
+            checkSession();
+        }
+
+        async function loadEvents() {
+            const res = await fetch('/api/events');
+            const events = await res.json();
+            const container = document.getElementById('events-list');
+            container.innerHTML = '';
+            events.forEach(ev => {
+                container.innerHTML += `
+                    <div class="card" style="border:1px solid #ddd;">
+                        <h3>${ev.title}</h3>
+                        <p>${ev.description}</p>
+                        <p><strong>Date:</strong> ${ev.date}</p>
+                        <p><strong>Location:</strong> ${ev.location}</p>
+                        <button class="btn" style="margin-top:0.5rem;" onclick="registerEvent(${ev.id})">Register for Event</button>
+                    </div>
+                `;
+            });
+            document.getElementById('events-sec').style.display = 'block';
+        }
+
+        async function registerEvent(eventId) {
+            const res = await fetch('/api/events/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ event_id: eventId })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                showAlert(data.message, 'success');
+                loadMyRegistrations();
+            } else {
+                showAlert(data.message, 'error');
+            }
+        }
+
+        async function loadMyRegistrations() {
+            const res = await fetch('/api/my-registrations');
+            if (!res.ok) return;
+            const data = await res.json();
+            const tbody = document.querySelector('#my-events-table tbody');
+            tbody.innerHTML = '';
+            data.forEach(item => {
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${item.title}</td>
+                        <td>${item.description}</td>
+                        <td>${item.date}</td>
+                        <td>${item.location}</td>
+                        <td>${new Date(item.registration_date).toLocaleString()}</td>
+                    </tr>
+                `;
+            });
+            document.getElementById('my-events-sec').style.display = 'block';
+        }
+
+        async function loadAdminData() {
+            const res = await fetch('/api/admin/participants');
+            if (!res.ok) return;
+            const data = await res.json();
+            const tbody = document.querySelector('#admin-table tbody');
+            tbody.innerHTML = '';
+            data.forEach(item => {
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${item.student_name}</td>
+                        <td>${item.email}</td>
+                        <td>${item.event_title}</td>
+                        <td>${new Date(item.registration_date).toLocaleString()}</td>
+                    </tr>
+                `;
+            });
+        }
+
+        checkSession();
+    </script>
+</body>
+</html>
